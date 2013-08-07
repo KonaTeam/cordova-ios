@@ -336,6 +336,20 @@
     self.inAppBrowserViewController = nil;
 }
 
+- (void)openExternal
+{
+    if (self.callbackId != nil) {
+        CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
+                                                      messageAsDictionary:@ {@"type":@"external"}];
+        [pluginResult setKeepCallback:[NSNumber numberWithBool:YES]];
+        [self.commandDelegate sendPluginResult:pluginResult callbackId:self.callbackId];
+    }
+    // Don’t recycle the ViewController since it may be consuming a lot of memory.
+    // Also – this is required for the PDF/User-Agent bug work-around.
+    self.inAppBrowserViewController = nil;
+}
+
+
 @end
 
 #pragma mark CDVInAppBrowserViewController
@@ -405,6 +419,12 @@
     self.closeButton.style = UIBarButtonItemStylePlain;
     self.closeButton.width = 32.000;
 
+    self.externalButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAction target:self action:@selector(openExternal)];
+    self.externalButton.enabled = YES;
+    self.externalButton.imageInsets = UIEdgeInsetsZero;
+    self.externalButton.style = UIBarButtonItemStylePlain;
+    self.externalButton.width = 38.000;
+
     UIBarButtonItem* flexibleSpaceButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace target:nil action:nil];
 
     UIBarButtonItem* fixedSpaceButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFixedSpace target:nil action:nil];
@@ -459,7 +479,7 @@
     self.backButton.enabled = YES;
     self.backButton.imageInsets = UIEdgeInsetsZero;
 
-    [self.toolbar setItems:@[self.closeButton, flexibleSpaceButton, self.backButton, fixedSpaceButton, self.forwardButton]];
+    [self.toolbar setItems:@[self.closeButton, flexibleSpaceButton, self.backButton, fixedSpaceButton, self.forwardButton, flexibleSpaceButton, self.externalButton]];
 
     self.view.backgroundColor = [UIColor grayColor];
     [self.view addSubview:self.toolbar];
@@ -521,6 +541,22 @@
     self.currentURL = nil;
 
     if ((self.navigationDelegate != nil) && [self.navigationDelegate respondsToSelector:@selector(browserExit)]) {
+        [self.navigationDelegate browserExit];
+    }
+}
+
+- (void)openExternal
+{
+    [CDVUserAgentUtil releaseLock:&_userAgentLockToken];
+
+    if ([self respondsToSelector:@selector(presentingViewController)]) {
+        [[self presentingViewController] dismissViewControllerAnimated:YES completion:nil];
+    } else {
+        [[self parentViewController] dismissModalViewControllerAnimated:YES];
+    }
+
+    if ((self.navigationDelegate != nil) && [self.navigationDelegate respondsToSelector:@selector(openExternal)]) {
+        [self.navigationDelegate openInSystem:self.currentURL];
         [self.navigationDelegate browserExit];
     }
 }
